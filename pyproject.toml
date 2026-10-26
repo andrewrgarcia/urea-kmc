@@ -1,0 +1,9 @@
+[project]
+name = "urea-kmc-tools"
+version = "0.1.0"
+description = "Plotting and table generation for urea-kmc"
+requires-python = ">=3.10"
+dependencies = ["numpy", "matplotlib"]
+
+[tool.uv]
+package = false

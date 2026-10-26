@@ -1,0 +1,86 @@
+# Task runner: `makers <task>` (cargo-make). Override any default inline, e.g.
+#   SOLVENT=methanol makers scan
+#   CS=0.30 SIGMA=0.03 makers grow
+
+[config]
+skip_core_tasks = true
+
+[env]
+SOLVENT = { value = "water", condition = { env_not_set = ["SOLVENT"] } }
+# Growth runs use C = CS * (1 + SIGMA). Default: C = 0.24, the water needle run (reading --ab co).
+# Scan crossovers (--ab co, 40-cell seed): water 0.2035, methanol 0.1494; they overstate growth a little.
+CS = { value = "0.24", condition = { env_not_set = ["CS"] } }
+SIGMA = { value = "0", condition = { env_not_set = ["SIGMA"] } }
+TNS = { value = "1000", condition = { env_not_set = ["TNS"] } }
+CLIST = { value = "0.30,0.35,0.40,0.42,0.44,0.46,0.48,0.50,0.55,0.60", condition = { env_not_set = ["CLIST"] } }
+# A 16-cell seed dissolves near saturation; 40 cells needs ~100 cells sideways once it squares off.
+NUCLEUS = { value = "40", condition = { env_not_set = ["NUCLEUS"] } }
+BOX = { value = "100x100x500", condition = { env_not_set = ["BOX"] } }
+# Reading of the SI's A/B rows: AB=co (default, A on the C=O side), AB=nh2 (Fig. 2 as drawn), AB=crystal.
+# SWAP12=--swap12 swaps the in-plane pair. SWAPAB=--swapAB is kept for old commands (same as AB=co).
+SWAP12 = { value = "", condition = { env_not_set = ["SWAP12"] } }
+SWAPAB = { value = "", condition = { env_not_set = ["SWAPAB"] } }
+AB = { value = "co", condition = { env_not_set = ["AB"] } }
+# Time stepping: SCHEME=exact (default) or SCHEME=sync, the paper's 50-ps sweep; ORDER=random|lattice for sync.
+SCHEME = { value = "exact", condition = { env_not_set = ["SCHEME"] } }
+ORDER = { value = "random", condition = { env_not_set = ["ORDER"] } }
+# Flat-face runs (makers face): face size in nm and simulated time in ns.
+FACE_NM = { value = "200", condition = { env_not_set = ["FACE_NM"] } }
+FACE_TNS = { value = "200", condition = { env_not_set = ["FACE_TNS"] } }
+
+[tasks.build]
+command = "cargo"
+args = ["build", "--release"]
+
+[tasks.test]
+command = "cargo"
+args = ["test", "--release"]
+
+[tasks.scan]
+description = "Net growth vs concentration, 16-cell nucleus, 50 ns per point (seconds)"
+command = "cargo"
+args = ["run", "--release", "--", "scan", "--solvent", "${SOLVENT}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}"]
+
+[tasks.scan-big]
+description = "Same with a 40-cell nucleus in a 96-cell box, concentrations from CLIST (under a minute)"
+command = "cargo"
+args = ["run", "--release", "--", "scan", "--solvent", "${SOLVENT}",
+        "--nucleus", "40", "--box", "96", "--t-ns", "100",
+        "--c-list", "${CLIST}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}"]
+
+[tasks.grow]
+description = "One growth run at C = CS * (1 + SIGMA); 1000 ns takes about a minute; log and surface dump in runs/SOLVENT"
+command = "cargo"
+args = ["run", "--release", "--", "grow", "--solvent", "${SOLVENT}",
+        "--cs", "${CS}", "--sigma", "${SIGMA}", "--t-ns", "${TNS}",
+        "--nucleus", "${NUCLEUS}", "--box", "${BOX}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}",
+        "--scheme", "${SCHEME}", "--order", "${ORDER}"]
+
+[tasks.face]
+description = "One [110] side face, periodic, FACE_NM x FACE_NM nm, at C = CS * (1 + SIGMA); writes runs/face-SOLVENT"
+command = "cargo"
+args = ["run", "--release", "--", "face", "--solvent", "${SOLVENT}", "--cs", "${CS}", "--sigma", "${SIGMA}",
+        "--face-nm", "${FACE_NM}", "--t-ns", "${FACE_TNS}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}",
+        "--scheme", "${SCHEME}", "--order", "${ORDER}"]
+
+[tasks.plot-face]
+description = "Height map of runs/face-SOLVENT/top.csv -> face.png"
+command = "uv"
+args = ["run", "python", "tools/plot_face.py", "runs/face-${SOLVENT}"]
+
+[tasks.plot]
+description = "Three projections of runs/SOLVENT/surface.csv, shaded by coordination like Fig. 4"
+command = "uv"
+args = ["run", "python", "tools/plot.py", "runs/${SOLVENT}"]
+
+[tasks.rates]
+description = "Regenerate src/rates_table.rs from data/piana_gale_2005_rates.json"
+command = "uv"
+args = ["run", "python", "tools/gen_rates.py"]
+
+[tasks.clean]
+script_runner = "@duckscript"
+script = '''
+exec cargo clean
+rm -r runs
+'''
