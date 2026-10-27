@@ -12,3 +12,5 @@ tools/gen_rates.py
 tools/plot.py
 tools/plot_face.py
 data/piana_gale_2005_rates.json
+tools/additivity.py
+tools/figures.py

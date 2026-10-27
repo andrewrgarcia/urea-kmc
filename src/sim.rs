@@ -1,7 +1,7 @@
 //! Exact continuous-time kMC (Bortz-Kalos-Lebowitz n-fold way) on the urea lattice.
 //!
 //! Every site is either crystal (occupied) or solution. A crystal site dissolves at kd(config);
-//! a solution site with at least one crystal neighbour crystallizes at kc(config) * C, where C is
+//! a solution site with at least one crystal neighbor crystallizes at kc(config) * C, where C is
 //! the urea concentration as a fraction of lattice sites (ASSUMPTION, README "units"), held constant
 //! (an infinite, well-mixed reservoir; no diffusion). Unlike the paper's 50-ps synchronous sweep this
 //! is serial-exact, so there is no "probability above 1" to clip.
@@ -84,7 +84,7 @@ impl Sim {
         }
     }
 
-    /// Fill a block of w x w x h unit cells (both sublattices) centred in the box, then classify all sites.
+    /// Fill a block of w x w x h unit cells (both sublattices) centered in the box, then classify all sites.
     pub fn seed_block(&mut self, w: usize, h: usize) {
         let l = self.lat;
         assert!(w + 4 < l.nx && w + 4 < l.ny && h + 4 < l.nz, "nucleus does not fit in the box");
@@ -270,7 +270,7 @@ impl Sim {
     }
 
     /// Flip one site (crystal <-> solution) and reclassify it and every site whose rate depends on it.
-    fn apply(&mut self, site: usize) {
+    pub fn apply(&mut self, site: usize) {
         let l = self.lat;
         let (s, i, j, k) = l.coords(site);
         if self.occ[site] == 0 {
@@ -384,7 +384,7 @@ impl Sim {
         Stats { n, coord, lc_nm: zmax - zmin, w110_nm: umax - umin, w1m10_nm: vmax - vmin }
     }
 
-    /// Crystal molecules with fewer than six neighbours: x, y, z (nm), sublattice, coordination.
+    /// Crystal molecules with fewer than six neighbors: x, y, z (nm), sublattice, coordination.
     pub fn surface_csv(&self) -> String {
         let mut out = String::from("x_nm,y_nm,z_nm,sublattice,n\n");
         for site in 0..self.occ.len() {

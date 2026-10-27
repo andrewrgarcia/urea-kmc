@@ -22,6 +22,8 @@ CS=0.30 makers grow              # growth at another concentration (C = CS * (1 
 AB=nh2 makers scan-big           # any task with Fig. 2 as drawn (AB=co is the default)
 SOLVENT=methanol CS=0.21 makers face && SOLVENT=methanol makers plot-face
                                  # one [110] side face, 200 x 200 nm, periodic: does it grow?
+SOLVENT=methanol CS=0.19 ISLAND_NM=20 FACE_TNS=100 makers face
+                                 # one seeded island per face: how fast do its edges move toward +c and -c?
 makers plot                      # runs/water/morphology.png
 SOLVENT=methanol makers scan     # any task, other solvent
 ```
@@ -193,6 +195,44 @@ Predicted length/width at full size = end speed (3D runs: water 0.24 → 266 nm/
 10–40). Water over methanol ≈ 10–20× (paper: 20–100×). Side growth on methanol switches on between C = 0.19
 and 0.21, so these numbers move strongly with concentration; the two solvents here are not at matched
 supersaturation (water 0.24 is ~18% above its scan crossover, methanol 0.21 ~40%).
+
+**Are the measured rates bond-additive? (2026-10-26)** Least-squares fit of ln(kd/kc), ln kd and ln kc over
+all measured cells (zeros and the 1.000E+10 placeholders excluded) to four per-neighbor terms plus a constant:
+
+| | ln(kd/kc) | ln kd | ln kc | per-neighbor ΔG for the ratio, kT (1, 2, A, B) |
+|---|---|---|---|---|
+| water (44 values) | R² 0.93, scatter ×2.5 | R² 0.83 | R² 0.83 | −2.5, −2.6, −1.8, −4.7 |
+| methanol (48) | R² 0.85, scatter ×3.2 | R² 0.73 | **R² 0.49** | −2.3, −2.0, −1.1, −4.1 |
+
+Four bond energies reproduce the equilibrium ratio of every site type to within the MD counting noise; the two
+in-plane bonds are equal, the two chain bonds are not (that asymmetry is the polar growth). The attachment
+rates alone in methanol are not additive: that is the kinetic information a bond-counting model (CrystalGrower's
+energy ladder) cannot carry, and what measuring the rates buys. Script: the fit is twelve lines of numpy over
+`data/piana_gale_2005_rates.json` (tools/additivity.py).
+
+**Polar step speeds: the paper's "twice as fast" (2026-10-26, cloud).** `--island-nm 20` puts one 20 x 20 nm
+island, one layer high, at the center of each face of a 200 nm slab and tracks how far its edges move (median
+over the island's central rows and columns; island.csv). Speeds from 10 to 100 ns, nm/µs:
+
+| run | face | toward +c | toward −c | +c / −c | along [1-10] (each side) |
+|---|---|---|---|---|---|
+| methanol 0.19 | top (+[110]) | 343 | 36 | 9.4 | ~0, slightly shrinking |
+| | bottom (−[110]) | 354 | 94 | 3.8 | ~0 |
+| methanol 0.20 | top | 437 | 198 | 2.2 | 26–61 |
+| | bottom | 494 | 286 | 1.7 | 61–70 |
+| water 0.24 | top | 567 | 338 | 1.7 | 61–79 |
+| | bottom | 510 | 396 | 1.3 | 79 |
+
+- In every run, on both faces, steps move faster toward +c than toward −c. The paper: "on the [110] and
+  [-1-10] faces, deposition on steps in the +c direction is twice that in the −c one", reversed on [1-10] and
+  [-110] (which our model gets automatically: the -4 symmetry that maps those faces also flips c).
+- At C = 0.20 the ratio is ≈ 2 (2.2 and 1.7): the paper's number. Closer to break-even (0.19) the −c step almost
+  stalls and the ratio grows (4–9). Water is less polar (1.3–1.7); the paper claims the asymmetry for methanol.
+- The 0.19 height map shows the paper's other sentence directly: the island grows into a strip with its
+  starting square near one end ("the initial nucleation site remains close to one edge of the island").
+- Steps run 6–7× faster along c than along [1-10], which is why every island in these maps is a streak along c.
+- Caveats: one run per condition; at 0.20 islands also form on their own and some may touch the seeded one;
+  which end the paper calls +c is a sign convention we cannot check, only the factor.
 
 ## What differs from the paper on purpose
 

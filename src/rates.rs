@@ -1,4 +1,4 @@
-//! Rate lookup from the decoded SI tables, plus the modelling switches the paper leaves open.
+//! Rate lookup from the decoded SI tables, plus the modeling switches the paper leaves open.
 
 use crate::rates_table::*;
 
@@ -8,20 +8,20 @@ pub enum Solvent {
     Methanol,
 }
 
-/// How to use the three-valued (pseudo-second-neighbour) cells.
+/// How to use the three-valued (pseudo-second-neighbor) cells.
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Split {
-    /// Classify by second neighbours (lattice.rs, "Second neighbours") and use i / ii / iii.
+    /// Classify by second neighbors (lattice.rs, "Second neighbors") and use i / ii / iii.
     Nnn,
-    /// Nearest-neighbour model: arithmetic mean of i, ii, iii.
+    /// Nearest-neighbor model: arithmetic mean of i, ii, iii.
     Mean,
 }
 
 /// Cells that were never observed in MD (0 in both the dissolution and the crystallization table).
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub enum Unobserved {
-    /// Geometric mean of the observed cells with the same neighbour count. The six-neighbour
-    /// (bulk) cell keeps zero dissolution; a buried vacancy fills like a five-neighbour site.
+    /// Geometric mean of the observed cells with the same neighbor count. The six-neighbor
+    /// (bulk) cell keeps zero dissolution; a buried vacancy fills like a five-neighbor site.
     Fill,
     /// Keep the published zeros: such a molecule can never leave, such a hole never fills.
     Published,
@@ -49,7 +49,7 @@ pub fn row(a: bool, b: bool) -> usize {
 pub const COL_NAMES: [&str; 9] = ["-", "1", "11", "2", "12", "112", "22", "122", "1122"];
 pub const ROW_NAMES: [&str; 4] = ["-", "A", "B", "AB"];
 
-pub fn neighbours(r: usize, c: usize) -> usize {
+pub fn neighbors(r: usize, c: usize) -> usize {
     let inplane = [0, 1, 2, 1, 2, 3, 2, 3, 4][c];
     let caxis = [0, 1, 1, 2][r];
     inplane + caxis
@@ -92,7 +92,7 @@ impl Rates {
                 let mut v = Vec::new();
                 for r in 0..4 {
                     for c in 0..9 {
-                        if (r, c) != (0, 0) && neighbours(r, c) == n {
+                        if (r, c) != (0, 0) && neighbors(r, c) == n {
                             v.extend(t[r][c].iter().copied().filter(|x| *x > 0.0));
                         }
                     }
@@ -102,7 +102,7 @@ impl Rates {
             let (kd0, kc0) = (kd, kc);
             for r in 0..4 {
                 for c in 0..9 {
-                    let n = neighbours(r, c);
+                    let n = neighbors(r, c);
                     if kd0[r][c][0] == 0.0 && kc0[r][c][0] == 0.0 && n > 0 {
                         if n < 6 {
                             kd[r][c] = [geomean(&observed(n, &kd0)); 3];
@@ -144,11 +144,11 @@ mod tests {
 
     #[test]
     fn site_type_count_matches_the_paper() {
-        // 34 surface types: 10 kinks (3), 8 steps (4), 4 terraces (5), 12 with one or two neighbours.
+        // 34 surface types: 10 kinks (3), 8 steps (4), 4 terraces (5), 12 with one or two neighbors.
         let mut by_n = [0usize; 7];
         for r in 0..4 {
             for c in 0..9 {
-                by_n[neighbours(r, c)] += 1;
+                by_n[neighbors(r, c)] += 1;
             }
         }
         assert_eq!(by_n, [1, 4, 8, 10, 8, 4, 1]);

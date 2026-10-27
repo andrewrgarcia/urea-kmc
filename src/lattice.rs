@@ -7,23 +7,23 @@
 //! so the "dipole up/down" of the paper is the sublattice (paper: "the orientation of
 //! the dipole is equivalent to defining the plane in which the urea molecule is situated").
 //!
-//! First neighbours (Fig. 2 of the paper; six hydrogen-bonded partners):
-//!   A    chain neighbour along c on the molecule's NH2 side (it donates nothing; its O takes our N-H), as Fig. 2
+//! First neighbors (Fig. 2 of the paper; six hydrogen-bonded partners):
+//!   A    chain neighbor along c on the molecule's NH2 side (it donates nothing; its O takes our N-H), as Fig. 2
 //!        draws it. The SI rate rows are read the other way round by default (sim.rs, --ab co; README).
-//!   B    chain neighbour along c on the molecule's C=O side
+//!   B    chain neighbor along c on the molecule's C=O side
 //!   1,1  the two in-plane partners along the molecule's OWN plane diagonal: our N-H donate to their O
 //!   2,2  the two in-plane partners along the perpendicular diagonal: their N-H donate to our O
-//! All four in-plane partners sit 0.348 c towards the molecule's C=O side (checked from the atomic
+//! All four in-plane partners sit 0.348 c toward the molecule's C=O side (checked from the atomic
 //! coordinates: every N...O distance is 2.99 A).
 //!
 //! ASSUMPTION (README, "1 vs 2"): which pair the paper calls 1 and which 2 is read from the projection
 //! in Fig. 2 (the 2s sit next to the carbonyl, the 1s further out along the molecular plane).
 //! `swap12` in the rate lookup tests the other reading.
 //!
-//! Second neighbours (paper's pseudo-second-neighbour split, SI):
+//! Second neighbors (paper's pseudo-second-neighbor split, SI):
 //!   Z  group: the four non-bonded images of the in-plane partners, displaced 0.652 c the other way (4.98 A)
 //!   XY group: the four same-sublattice molecules at +-a, +-b (5.565 A)
-//! ASSUMPTION (README, "split"): this is our reading of "second nearest neighbours on the Z direction"
+//! ASSUMPTION (README, "split"): this is our reading of "second nearest neighbors on the Z direction"
 //! versus "on the X or Y direction".
 
 pub const A_LEN: f64 = 5.565; // Angstrom
@@ -39,7 +39,7 @@ pub fn crystal_molarity() -> f64 {
 /// (target sublattice, di, dj, dk)
 pub type Off = (usize, i64, i64, i64);
 
-/// First neighbours: [type1, type1, type2, type2, A, B]
+/// First neighbors: [type1, type1, type2, type2, A, B]
 pub const NN: [[Off; 6]; 2] = [
     // alpha (i, j+1/2, k+zC); C=O points +c
     [(1, 0, 1, 0), (1, -1, 0, 0), (1, 0, 0, 0), (1, -1, 1, 0), (0, 0, 0, -1), (0, 0, 0, 1)],
@@ -47,7 +47,7 @@ pub const NN: [[Off; 6]; 2] = [
     [(0, 0, 0, 0), (0, 1, -1, 0), (0, 0, -1, 0), (0, 1, 0, 0), (1, 0, 0, 1), (1, 0, 0, -1)],
 ];
 
-/// Second neighbours: [Z, Z, Z, Z, XY, XY, XY, XY]
+/// Second neighbors: [Z, Z, Z, Z, XY, XY, XY, XY]
 pub const NNN: [[Off; 8]; 2] = [
     [
         (1, 0, 1, -1), (1, -1, 0, -1), (1, 0, 0, -1), (1, -1, 1, -1),
@@ -110,7 +110,7 @@ impl Lattice {
     }
 
     /// Sites on the outer cell layer are never active, so every active site has all
-    /// first and second neighbours inside the box (all offsets are within +-1 cell).
+    /// first and second neighbors inside the box (all offsets are within +-1 cell).
     #[inline]
     pub fn interior(&self, i: usize, j: usize, k: usize) -> bool {
         if self.slab {
@@ -128,7 +128,7 @@ impl Lattice {
         i < 2 || j < 2 || k < 2 || i + 2 >= self.nx || j + 2 >= self.ny || k + 2 >= self.nz
     }
 
-    /// Offset neighbour; caller guarantees (i, j, k) is interior.
+    /// Offset neighbor; caller guarantees (i, j, k) is interior.
     #[inline]
     pub fn shift(&self, i: usize, j: usize, k: usize, o: Off) -> usize {
         if self.slab {
@@ -144,7 +144,7 @@ impl Lattice {
         self.idx(o.0, ii, jj, kk)
     }
 
-    /// Cartesian position of the carbon atom, in nanometres.
+    /// Cartesian position of the carbon atom, in nanometers.
     pub fn position_nm(&self, idx: usize) -> (f64, f64, f64) {
         let (s, i, j, k) = self.coords(idx);
         let (i, j) = if self.slab { (i as f64, j as f64 - i as f64) } else { (i as f64, j as f64) };
@@ -161,7 +161,7 @@ impl Lattice {
 mod tests {
     use super::*;
 
-    /// Sites to test: the box centre, and for the slab also sites on the wrap-around edges.
+    /// Sites to test: the box center, and for the slab also sites on the wrap-around edges.
     fn cases() -> Vec<(Lattice, usize, usize, usize)> {
         let b = Lattice::boxed(8, 8, 8);
         let sl = Lattice::slab(8, 8, 8);
@@ -169,7 +169,7 @@ mod tests {
     }
 
     #[test]
-    fn first_neighbours_are_mutual_with_swapped_types() {
+    fn first_neighbors_are_mutual_with_swapped_types() {
         // If Y is X's type-1 partner (X donates to Y), X is Y's type-2 partner, and vice versa;
         // if Y is X's A, X is Y's B.
         let kind = |n: usize| match n { 0 | 1 => 1, 2 | 3 => 2, 4 => 10, _ => 20 };
@@ -189,7 +189,7 @@ mod tests {
     }
 
     #[test]
-    fn second_neighbours_are_mutual() {
+    fn second_neighbors_are_mutual() {
         for (l, i, j, k) in cases() {
             for s in 0..2 {
                 let x = l.idx(s, i, j, k);
@@ -206,7 +206,7 @@ mod tests {
 
     #[test]
     fn distances_match_the_crystal_structure() {
-        // centre sites only: across a periodic edge the stored positions are a period apart
+        // center sites only: across a periodic edge the stored positions are a period apart
         for l in [Lattice::boxed(8, 8, 8), Lattice::slab(8, 8, 8)] {
             let d = |a: usize, b: usize| {
                 let (x1, y1, z1) = l.position_nm(a);
@@ -225,7 +225,7 @@ mod tests {
                     let want = if n < 4 { 4.98 } else { 5.565 };
                     assert!((r - want).abs() < 0.01, "NNN s={s} n={n} r={r}");
                 }
-                // in-plane partners sit towards the molecule's own C=O side
+                // in-plane partners sit toward the molecule's own C=O side
                 let zc = l.position_nm(x).2;
                 for o in &NN[s][..4] {
                     let dz = l.position_nm(l.shift(4, 4, 4, *o)).2 - zc;

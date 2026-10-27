@@ -1,5 +1,5 @@
 """Plot a urea-kmc surface dump: three projections, shaded by coordination (Fig. 4 of the paper:
-dark, medium, light blue = 3, 4, 5 neighbours).
+dark, medium, light blue = 3, 4, 5 neighbors).
 
 Run: uv run python tools/plot.py runs/water        -> runs/water/morphology.png
 """

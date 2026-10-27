@@ -27,6 +27,8 @@ ORDER = { value = "random", condition = { env_not_set = ["ORDER"] } }
 # Flat-face runs (makers face): face size in nm and simulated time in ns.
 FACE_NM = { value = "200", condition = { env_not_set = ["FACE_NM"] } }
 FACE_TNS = { value = "200", condition = { env_not_set = ["FACE_TNS"] } }
+# ISLAND_NM > 0 also seeds one square island of that size on each face and tracks its edges (island.csv).
+ISLAND_NM = { value = "0", condition = { env_not_set = ["ISLAND_NM"] } }
 
 [tasks.build]
 command = "cargo"
@@ -60,13 +62,31 @@ args = ["run", "--release", "--", "grow", "--solvent", "${SOLVENT}",
 description = "One [110] side face, periodic, FACE_NM x FACE_NM nm, at C = CS * (1 + SIGMA); writes runs/face-SOLVENT"
 command = "cargo"
 args = ["run", "--release", "--", "face", "--solvent", "${SOLVENT}", "--cs", "${CS}", "--sigma", "${SIGMA}",
-        "--face-nm", "${FACE_NM}", "--t-ns", "${FACE_TNS}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}",
+        "--face-nm", "${FACE_NM}", "--t-ns", "${FACE_TNS}", "--island-nm", "${ISLAND_NM}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}",
         "--scheme", "${SCHEME}", "--order", "${ORDER}"]
 
 [tasks.plot-face]
 description = "Height map of runs/face-SOLVENT/top.csv -> face.png"
 command = "uv"
 args = ["run", "python", "tools/plot_face.py", "runs/face-${SOLVENT}"]
+
+[tasks.figure-runs]
+description = "The runs behind the paper's figures, into runs/fig (deterministic; about 4 minutes)"
+script_runner = "@duckscript"
+script = '''
+exec cargo build --release
+exec cargo run --release --quiet -- grow --solvent water --c 0.24 --nucleus 40 --box 100x100x500 --t-ns 1000 --report-ns 50 --out runs/fig/water
+exec cargo run --release --quiet -- grow --solvent methanol --c 0.21 --nucleus 40 --box 100x100x500 --t-ns 200 --report-ns 50 --out runs/fig/methanol
+exec cargo run --release --quiet -- face --solvent water --c 0.24 --face-nm 200 --t-ns 200 --out runs/fig/face-water-0.24
+exec cargo run --release --quiet -- face --solvent methanol --c 0.21 --face-nm 200 --t-ns 200 --out runs/fig/face-methanol-0.21
+exec cargo run --release --quiet -- face --solvent methanol --c 0.19 --face-nm 200 --t-ns 200 --out runs/fig/face-methanol-0.19
+exec cargo run --release --quiet -- face --solvent methanol --c 0.19 --face-nm 200 --island-nm 20 --t-ns 100 --report-ns 10 --out runs/fig/island-methanol-0.19
+'''
+
+[tasks.figures]
+description = "Paper figures from runs/fig into ~/papers/urea-kmc-replication/figures (run figure-runs first)"
+command = "uv"
+args = ["run", "python", "tools/figures.py"]
 
 [tasks.plot]
 description = "Three projections of runs/SOLVENT/surface.csv, shaded by coordination like Fig. 4"

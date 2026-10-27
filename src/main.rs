@@ -24,10 +24,10 @@ urea-kmc scan|grow [options]
 
 common
   --solvent water|methanol      (water)
-  --split nnn|mean              second-neighbour split as in the SI, or its mean (nnn)
+  --split nnn|mean              second-neighbor split as in the SI, or its mean (nnn)
   --unobserved fill|published   cells never seen in MD: fill from same-coordination mean, or keep zeros (fill)
   --swap12                      swap which in-plane pair is called 1 and which 2
-  --ab co|nh2|crystal           which chain neighbour the SI calls A: the molecule's C=O side (co, default: the
+  --ab co|nh2|crystal           which chain neighbor the SI calls A: the molecule's C=O side (co, default: the
                                 only reading that reproduces the paper's solubilities), its NH2 side (nh2, Fig. 2
                                 as drawn), or the one above (+c) for every molecule (crystal: breaks the symmetry)
   --swapAB                      same as --ab co (kept for old commands)
@@ -56,6 +56,8 @@ face (one [110] side face, periodic along [1-10] and c, grown from whole molecul
   --layers W                    starting slab thickness in (110) layers (20)
   --margin M                    empty layers on each side; reaching them ends the run (20)
   --t-ns T, --report-ns R       as for grow (100, T/20)
+  --island-nm S                 also put one square island, one layer high and S nm on a side, at the center of
+                                each face, and track how far its edges move toward +c, -c and along [1-10] (0: none)
   --out DIR                     DIR/log.csv and DIR/top.csv, the top face's height map (runs/face-<solvent>)
 
 concentration: 1.0 = every site full = crystal density (22.89 M)";
@@ -284,6 +286,54 @@ fn grow(m: &HashMap<String, String>) {
     println!("# wrote {out}/log.csv and {out}/surface.csv");
 }
 
+/// How far an island reaches from its center (nc, kc) on a height map, in cells: walk out from the center over
+/// filled cells, bridging one-cell gaps, for every row/column through the central half of the island's starting
+/// size, and take the median. Returns (toward +c, toward -c, toward +n, toward -n); NaN once the center is empty.
+fn island_reach(
+    filled: &dyn Fn(usize, usize) -> bool,
+    period: usize,
+    nz: usize,
+    (n_lo, n_hi, k_lo, k_hi): (usize, usize, usize, usize),
+) -> [f64; 4] {
+    let (nc, kc) = ((n_lo + n_hi) / 2, (k_lo + k_hi) / 2);
+    let walk = |len: usize, step: &dyn Fn(usize) -> bool| -> usize {
+        let mut j = 0;
+        while j + 2 < len / 2 {
+            if step(j + 1) {
+                j += 1;
+            } else if step(j + 2) {
+                j += 2;
+            } else {
+                break;
+            }
+        }
+        j
+    };
+    let median = |mut v: Vec<f64>| -> f64 {
+        if v.is_empty() {
+            return f64::NAN;
+        }
+        v.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        v[v.len() / 2]
+    };
+    let qn = (n_hi - n_lo) / 4;
+    let qk = (k_hi - k_lo) / 4;
+    let (mut up, mut down, mut right, mut left) = (vec![], vec![], vec![], vec![]);
+    for n in n_lo + qn..n_hi - qn {
+        if filled(n, kc) {
+            up.push(walk(nz, &|j| filled(n, (kc + j) % nz)) as f64);
+            down.push(walk(nz, &|j| filled(n, (kc + nz - j % nz) % nz)) as f64);
+        }
+    }
+    for k in k_lo + qk..k_hi - qk {
+        if filled(nc, k) {
+            right.push(walk(period, &|j| filled((nc + j) % period, k)) as f64);
+            left.push(walk(period, &|j| filled((nc + period - j % period) % period, k)) as f64);
+        }
+    }
+    [median(up), median(down), median(right), median(left)]
+}
+
 fn face(m: &HashMap<String, String>) {
     let md = model(m);
     header(&md);
@@ -326,12 +376,68 @@ fn face(m: &HashMap<String, String>) {
     let mut sim = Sim::new(lat, &md.rates, c, md.swap12, md.ab, seed);
     sim.sync = md.sync;
     sim.seed_layers(margin, w);
-    let n0 = sim.n_crystal as f64;
     let top0 = (margin + w - 1) as f64;
+    // optional island on each face: columns n_lo..n_hi, rows k_lo..k_hi, one layer above the top / below the bottom
+    let island_nm = num(m, "island-nm", "0");
+    let cell_c = lattice::C_LEN / 10.0;
+    let cell_n = 2.0 * lattice::d110_nm();
+    let isl = if island_nm > 0.0 {
+        let wi = ((island_nm / cell_n).round() as usize).clamp(4, period - 4);
+        let hi = ((island_nm / cell_c).round() as usize).clamp(4, nz - 4);
+        let (n_lo, k_lo) = ((period - wi) / 2, (nz - hi) / 2);
+        let r = (n_lo, n_lo + wi, k_lo, k_lo + hi);
+        for mm in [margin + w, margin - 1] {
+            for k in r.2..r.3 {
+                for n in r.0..r.1 {
+                    for s in 0..2 {
+                        sim.apply(sim.lat.idx(s, n, mm, k));
+                    }
+                }
+            }
+        }
+        println!("# island: {wi} x {hi} cells ({:.1} nm along [1-10] x {:.1} nm along c) on each face", wi as f64 * cell_n, hi as f64 * cell_c);
+        Some(r)
+    } else {
+        None
+    };
+    let mut ilog = isl.map(|_| {
+        let mut f = std::fs::File::create(format!("{out}/island.csv")).unwrap();
+        writeln!(f, "# island edge displacement from the start, nm; top face = +[110], bottom = -[110]").unwrap();
+        writeln!(f, "t_ns,top_plus_c,top_minus_c,top_plus_n,top_minus_n,bot_plus_c,bot_minus_c,bot_plus_n,bot_minus_n").unwrap();
+        f
+    });
+    let mut itrack: Vec<(f64, [f64; 8])> = Vec::new();
+    let n0 = sim.n_crystal as f64;
     let mut next = 0.0;
     loop {
         sim.run_until(next * 1e-9);
-        let (top, _) = sim.face_heights();
+        let (top, bot) = sim.face_heights();
+        if let Some(r) = isl {
+            let (n_lo, n_hi, k_lo, k_hi) = r;
+            let kc = (k_lo + k_hi) / 2;
+            let nc = (n_lo + n_hi) / 2;
+            let start = [(k_hi - 1 - kc) as f64, (kc - k_lo) as f64, (n_hi - 1 - nc) as f64, (nc - n_lo) as f64];
+            let ft = |n: usize, k: usize| top[k * period + n] as f64 > top0;
+            let fb = |n: usize, k: usize| {
+                let b = bot[k * period + n];
+                b >= 0 && (b as usize) < margin
+            };
+            let rt = island_reach(&ft, period, nz, r);
+            let rb = island_reach(&fb, period, nz, r);
+            let scale = [cell_c, cell_c, cell_n, cell_n];
+            let mut d = [0.0; 8];
+            for q in 0..4 {
+                d[q] = (rt[q] - start[q]) * scale[q];
+                d[q + 4] = (rb[q] - start[q]) * scale[q];
+            }
+            itrack.push((sim.t * 1e9, d));
+            let line: Vec<String> = d.iter().map(|x| format!("{x:.2}")).collect();
+            if let Some(f) = ilog.as_mut() {
+                writeln!(f, "{:.1},{}", sim.t * 1e9, line.join(",")).unwrap();
+            }
+            println!("#   island t={:.1} ns  top: +c {} -c {} +n {} -n {} | bottom: +c {} -c {} +n {} -n {} (nm)",
+                sim.t * 1e9, line[0], line[1], line[2], line[3], line[4], line[5], line[6], line[7]);
+        }
         let h: Vec<f64> = top.iter().filter(|&&t| t >= 0).map(|&t| t as f64 - top0).collect();
         let mean = h.iter().sum::<f64>() / h.len().max(1) as f64;
         let rms = (h.iter().map(|x| (x - mean).powi(2)).sum::<f64>() / h.len().max(1) as f64).sqrt();
@@ -362,6 +468,19 @@ fn face(m: &HashMap<String, String>) {
     );
     if sim.hit_wall {
         println!("# stopped: growth reached the margin (raise --margin)");
+    }
+    if itrack.len() >= 3 {
+        // step speeds from the second report on (skips the first settling interval)
+        let (t1, d1) = itrack[1];
+        let (t2, d2) = *itrack.last().unwrap();
+        let v: Vec<f64> = (0..8).map(|q| (d2[q] - d1[q]) / ((t2 - t1) * 1e-3)).collect();
+        println!("# island edge speeds, nm/us, {t1:.0}-{t2:.0} ns:");
+        for (face, o) in [("top (+[110])", 0), ("bottom (-[110])", 4)] {
+            println!(
+                "#   {face}: +c {:.0}, -c {:.0}, ratio +c/-c {:.2} | along [1-10] +{:.0} -{:.0} | along c / along [1-10] {:.2}",
+                v[o], v[o + 1], v[o] / v[o + 1], v[o + 2], v[o + 3], (v[o] + v[o + 1]) / (v[o + 2] + v[o + 3])
+            );
+        }
     }
     let (top, _) = sim.face_heights();
     let mut csv = String::new();
