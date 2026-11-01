@@ -83,10 +83,29 @@ exec cargo run --release --quiet -- face --solvent methanol --c 0.19 --face-nm 2
 exec cargo run --release --quiet -- face --solvent methanol --c 0.19 --face-nm 200 --island-nm 20 --t-ns 100 --report-ns 10 --out runs/fig/island-methanol-0.19
 '''
 
+[tasks.face-area]
+description = "Methanol {110} face at C = 0.20 for face widths 25-400 nm (paper Sec. 3.3, size test), into runs/area (about 10 minutes)"
+script_runner = "@duckscript"
+script = '''
+exec cargo build --release
+widths = array 25 50 100
+seeds = array 1 2 3
+for nm in ${widths}
+  for s in ${seeds}
+    exec cargo run --release --quiet -- face --solvent methanol --c 0.20 --face-nm ${nm} --t-ns 200 --seed ${s} --out runs/area/face-${nm}nm-s${s}
+  end
+end
+exec cargo run --release --quiet -- face --solvent methanol --c 0.20 --face-nm 200 --t-ns 200 --out runs/area/face-200nm
+exec cargo run --release --quiet -- face --solvent methanol --c 0.20 --face-nm 400 --t-ns 200 --out runs/area/face-400nm
+'''
+
 [tasks.figures]
 description = "Paper figures from runs/fig into ~/papers/urea-kmc-replication/figures (run figure-runs first)"
-command = "uv"
-args = ["run", "python", "tools/figures.py"]
+script_runner = "@duckscript"
+script = '''
+exec uv run python tools/figures.py
+exec uv run python tools/lattice_figure.py
+'''
 
 [tasks.plot]
 description = "Three projections of runs/SOLVENT/surface.csv, shaded by coordination like Fig. 4"

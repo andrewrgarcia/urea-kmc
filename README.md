@@ -247,3 +247,10 @@ over the island's central rows and columns; island.csv). Speeds from 10 to 100 n
 - `src/sim.rs` the kMC engine
 - `src/main.rs` `scan` and `grow`
 - `tools/gen_rates.py` JSON → Rust table; `tools/plot.py` projections shaded like Fig. 4; `tools/plot_face.py` face height map
+
+## License
+
+The code is MIT-licensed (`LICENSE`). The rate tables in `data/piana_gale_2005_rates.json` (and
+`src/rates_table.rs`, generated from them) are a transcription of the Supplementary Information of
+S. Piana, M. Reyhani and J. D. Gale, *Nature* **438**, 70–73 (2005), doi:10.1038/nature04173. They are
+not covered by the MIT license; cite the original paper when you use them.
