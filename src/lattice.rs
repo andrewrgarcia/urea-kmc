@@ -165,7 +165,7 @@ mod tests {
     fn cases() -> Vec<(Lattice, usize, usize, usize)> {
         let b = Lattice::boxed(8, 8, 8);
         let sl = Lattice::slab(8, 8, 8);
-        vec![(b, 4, 4, 4), (sl, 4, 4, 4), (sl, 0, 4, 0), (sl, 7, 3, 7), (sl, 0, 1, 7)]
+        vec![(b, 4, 4, 4), (sl, 4, 4, 4), (sl, 0, 4, 0), (sl, 7, 3, 7), (sl, 0, 2, 7)]
     }
 
     #[test]
