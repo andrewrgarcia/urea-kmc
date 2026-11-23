@@ -26,11 +26,15 @@ common
   --solvent water|methanol      (water)
   --split nnn|mean              second-neighbor split as in the SI, or its mean (nnn)
   --unobserved fill|published   cells never seen in MD: fill from same-coordination mean, or keep zeros (fill)
-  --swap12                      swap which in-plane pair is called 1 and which 2
+  --in-plane swapped|fig2       which in-plane pair the SI calls 1: exchanged from Fig. 2 (swapped, default: the
+                                rate tables' point of view, as for A/B) or as Fig. 2 draws it (fig2)
+  --swap12                      same as --in-plane swapped (kept for old commands)
   --ab co|nh2|crystal           which chain neighbor the SI calls A: the molecule's C=O side (co, default: the
                                 only reading that reproduces the paper's solubilities), its NH2 side (nh2, Fig. 2
                                 as drawn), or the one above (+c) for every molecule (crystal: breaks the symmetry)
   --swapAB                      same as --ab co (kept for old commands)
+  --rates FILE                  read the rate tables from FILE (schema of data/piana_gale_2005_rates.json) instead
+                                of the compiled SI tables; --split and --unobserved apply to it the same way
   --nucleus W | WxH             starting block in unit cells (16)
   --box N | NXxNYxNZ            box in unit cells (scan 48, grow 48x48x400)
   --seed N                      (1)
@@ -144,7 +148,12 @@ fn model(m: &HashMap<String, String>) -> Model {
         "published" => Unobserved::Published,
         s => die(&format!("unknown unobserved {s}")),
     };
-    let swap12 = m.contains_key("swap12");
+    let in_plane = if m.contains_key("swap12") { "swapped" } else { get(m, "in-plane", "swapped") };
+    let swap12 = match in_plane {
+        "swapped" => true,
+        "fig2" => false,
+        s => die(&format!("unknown --in-plane {s}")),
+    };
     let ab_name = if m.contains_key("swapAB") { "co" } else { get(m, "ab", "co") };
     let ab = match ab_name {
         "nh2" => 0,
@@ -152,7 +161,11 @@ fn model(m: &HashMap<String, String>) -> Model {
         "crystal" => 2,
         s => die(&format!("unknown --ab {s}")),
     };
-    let rates = Rates::new(solvent, split, unobserved);
+    let rates_file = m.get("rates").cloned();
+    let rates = match &rates_file {
+        None => Rates::new(solvent, split, unobserved),
+        Some(f) => Rates::from_file(f, solvent, split, unobserved).unwrap_or_else(|e| die(&e)),
+    };
     let sync = match get(m, "scheme", "exact") {
         "exact" => None,
         "sync" => {
@@ -171,7 +184,8 @@ fn model(m: &HashMap<String, String>) -> Model {
         Some((dt, r)) => format!("sync dt={}ps order={}", dt * 1e12, if r { "random" } else { "lattice" }),
     };
     let label = format!(
-        "solvent={solvent:?} split={split:?} unobserved={unobserved:?} swap12={swap12} ab={ab_name} scheme={scheme_label}"
+        "solvent={solvent:?} split={split:?} unobserved={unobserved:?} swap12={swap12} ab={ab_name} scheme={scheme_label}{}",
+        rates_file.as_deref().map(|f| format!(" rates={f}")).unwrap_or_default()
     );
     Model { solvent, rates, swap12, ab, sync, label }
 }

@@ -17,7 +17,7 @@ choice the paper leaves open is a command-line switch, listed below.
 makers test                      # geometry, pinned SI values, bookkeeping
 makers scan                      # net growth vs concentration (seconds)
 makers scan-big                  # larger nucleus, finer grid (a few minutes)
-makers grow                      # the water needle run: C = 0.24, reading --ab co
+makers grow                      # the water needle run: C = 0.24, reading --ab co --in-plane swapped
 CS=0.30 makers grow              # growth at another concentration (C = CS * (1 + SIGMA), SIGMA default 0)
 AB=nh2 makers scan-big           # any task with Fig. 2 as drawn (AB=co is the default)
 SOLVENT=methanol CS=0.21 makers face && SOLVENT=methanol makers plot-face
@@ -62,13 +62,17 @@ time step.
 
 | ⚠ | what | default | switch |
 |---|---|---|---|
-| 1 vs 2 | which in-plane pair is "1": read from the projection in Fig. 2 (shape barely depends on it) | 1 = along the molecule's own plane | `--swap12` |
+| 1 vs 2 | which in-plane pair is "1": Fig. 2's projection shows 1 along the molecule's own plane; reading the rate from the other molecule's point of view (as for A/B) exchanges the pair. Saturation and shapes are the same either way; step polarity and tip twist reverse | 1 = across the molecule's plane, i.e. exchanged from Fig. 2 (since 2026-11-23) | `--in-plane swapped\|fig2` (`--swap12` = `--in-plane swapped`) |
 | A vs B | which chain neighbor is "A": Fig. 2 shows A on the NH₂ side, but the SI rates match the paper's solubilities only the other way round | A = C=O side (since 2026-10-26) | `--ab nh2\|co\|crystal` (`--swapAB` = `--ab co`) |
 | split | what "second neighbors along Z / along X or Y" are: here the four non-bonded images 0.652 c away (4.98 Å) vs the four same-orientation molecules at ±a, ±b (5.565 Å) | use i / ii / iii | `--split mean` ignores the split |
 | unobserved | cells never seen in MD (0 in both tables, e.g. `11/-`, `22/AB`): a molecule there could never leave | fill from the mean of observed cells with the same neighbor count; bulk never dissolves | `--unobserved published` |
 | units | C as a fraction of lattice sites; molarity = C × 22.89 M | | |
 | placeholders | some cells are 1.000E+10 in both tables (e.g. `112/-`, `122/-`), probably filled in by hand | used as published | |
 | solution | well-mixed, constant C, no diffusion, no nucleation away from the crystal | | (finite-solution depletion: not yet) |
+
+Other rate tables: `--rates FILE` reads the four tables from a file in the schema of
+`data/piana_gale_2005_rates.json` instead of the compiled SI tables (e.g. predicted tables from a rate estimator);
+`--split` and `--unobserved` apply to it the same way. Without it nothing changes.
 
 ## Results so far (2026-10-26, water and methanol, defaults)
 

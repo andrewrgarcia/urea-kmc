@@ -7,7 +7,7 @@ skip_core_tasks = true
 
 [env]
 SOLVENT = { value = "water", condition = { env_not_set = ["SOLVENT"] } }
-# Growth runs use C = CS * (1 + SIGMA). Default: C = 0.24, the water needle run (reading --ab co).
+# Growth runs use C = CS * (1 + SIGMA). Default: C = 0.24, the water needle run (reading --ab co --in-plane swapped).
 # Scan crossovers (--ab co, 40-cell seed): water 0.2035, methanol 0.1494; they overstate growth a little.
 CS = { value = "0.24", condition = { env_not_set = ["CS"] } }
 SIGMA = { value = "0", condition = { env_not_set = ["SIGMA"] } }
@@ -17,7 +17,9 @@ CLIST = { value = "0.30,0.35,0.40,0.42,0.44,0.46,0.48,0.50,0.55,0.60", condition
 NUCLEUS = { value = "40", condition = { env_not_set = ["NUCLEUS"] } }
 BOX = { value = "100x100x500", condition = { env_not_set = ["BOX"] } }
 # Reading of the SI's A/B rows: AB=co (default, A on the C=O side), AB=nh2 (Fig. 2 as drawn), AB=crystal.
-# SWAP12=--swap12 swaps the in-plane pair. SWAPAB=--swapAB is kept for old commands (same as AB=co).
+# In-plane pair: IN_PLANE=swapped (default since 2026-11-23, 1 and 2 exchanged from Fig. 2 like A/B) or IN_PLANE=fig2.
+# SWAP12=--swap12 (= IN_PLANE=swapped) and SWAPAB=--swapAB (= AB=co) are kept for old commands.
+IN_PLANE = { value = "swapped", condition = { env_not_set = ["IN_PLANE"] } }
 SWAP12 = { value = "", condition = { env_not_set = ["SWAP12"] } }
 SWAPAB = { value = "", condition = { env_not_set = ["SWAPAB"] } }
 AB = { value = "co", condition = { env_not_set = ["AB"] } }
@@ -41,28 +43,28 @@ args = ["test", "--release"]
 [tasks.scan]
 description = "Net growth vs concentration, 16-cell nucleus, 50 ns per point (seconds)"
 command = "cargo"
-args = ["run", "--release", "--", "scan", "--solvent", "${SOLVENT}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}"]
+args = ["run", "--release", "--", "scan", "--solvent", "${SOLVENT}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}", "--in-plane", "${IN_PLANE}"]
 
 [tasks.scan-big]
 description = "Same with a 40-cell nucleus in a 96-cell box, concentrations from CLIST (under a minute)"
 command = "cargo"
 args = ["run", "--release", "--", "scan", "--solvent", "${SOLVENT}",
         "--nucleus", "40", "--box", "96", "--t-ns", "100",
-        "--c-list", "${CLIST}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}"]
+        "--c-list", "${CLIST}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}", "--in-plane", "${IN_PLANE}"]
 
 [tasks.grow]
 description = "One growth run at C = CS * (1 + SIGMA); 1000 ns takes about a minute; log and surface dump in runs/SOLVENT"
 command = "cargo"
 args = ["run", "--release", "--", "grow", "--solvent", "${SOLVENT}",
         "--cs", "${CS}", "--sigma", "${SIGMA}", "--t-ns", "${TNS}",
-        "--nucleus", "${NUCLEUS}", "--box", "${BOX}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}",
+        "--nucleus", "${NUCLEUS}", "--box", "${BOX}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}", "--in-plane", "${IN_PLANE}",
         "--scheme", "${SCHEME}", "--order", "${ORDER}"]
 
 [tasks.face]
 description = "One [110] side face, periodic, FACE_NM x FACE_NM nm, at C = CS * (1 + SIGMA); writes runs/face-SOLVENT"
 command = "cargo"
 args = ["run", "--release", "--", "face", "--solvent", "${SOLVENT}", "--cs", "${CS}", "--sigma", "${SIGMA}",
-        "--face-nm", "${FACE_NM}", "--t-ns", "${FACE_TNS}", "--island-nm", "${ISLAND_NM}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}",
+        "--face-nm", "${FACE_NM}", "--t-ns", "${FACE_TNS}", "--island-nm", "${ISLAND_NM}", "${SWAP12}", "${SWAPAB}", "--ab", "${AB}", "--in-plane", "${IN_PLANE}",
         "--scheme", "${SCHEME}", "--order", "${ORDER}"]
 
 [tasks.plot-face]
@@ -71,16 +73,16 @@ command = "uv"
 args = ["run", "python", "tools/plot_face.py", "runs/face-${SOLVENT}"]
 
 [tasks.figure-runs]
-description = "The runs behind the paper's figures, into runs/fig (deterministic; about 4 minutes)"
+description = "The runs behind the paper's figures, into runs/fig (fully exchanged reading; deterministic; about 4 minutes)"
 script_runner = "@duckscript"
 script = '''
 exec cargo build --release
-exec cargo run --release --quiet -- grow --solvent water --c 0.24 --nucleus 40 --box 100x100x500 --t-ns 1000 --report-ns 50 --out runs/fig/water
-exec cargo run --release --quiet -- grow --solvent methanol --c 0.21 --nucleus 40 --box 100x100x500 --t-ns 200 --report-ns 50 --out runs/fig/methanol
-exec cargo run --release --quiet -- face --solvent water --c 0.24 --face-nm 200 --t-ns 200 --out runs/fig/face-water-0.24
-exec cargo run --release --quiet -- face --solvent methanol --c 0.21 --face-nm 200 --t-ns 200 --out runs/fig/face-methanol-0.21
-exec cargo run --release --quiet -- face --solvent methanol --c 0.19 --face-nm 200 --t-ns 200 --out runs/fig/face-methanol-0.19
-exec cargo run --release --quiet -- face --solvent methanol --c 0.19 --face-nm 200 --island-nm 20 --t-ns 100 --report-ns 10 --out runs/fig/island-methanol-0.19
+exec cargo run --release --quiet -- grow --solvent water --c 0.24 --nucleus 40 --box 100x100x500 --t-ns 1000 --report-ns 50 --ab co --in-plane swapped --out runs/fig/water
+exec cargo run --release --quiet -- grow --solvent methanol --c 0.21 --nucleus 40 --box 100x100x500 --t-ns 200 --report-ns 50 --ab co --in-plane swapped --out runs/fig/methanol
+exec cargo run --release --quiet -- face --solvent water --c 0.24 --face-nm 200 --t-ns 200 --ab co --in-plane swapped --out runs/fig/face-water-0.24
+exec cargo run --release --quiet -- face --solvent methanol --c 0.21 --face-nm 200 --t-ns 200 --ab co --in-plane swapped --out runs/fig/face-methanol-0.21
+exec cargo run --release --quiet -- face --solvent methanol --c 0.19 --face-nm 200 --t-ns 200 --ab co --in-plane swapped --out runs/fig/face-methanol-0.19
+exec cargo run --release --quiet -- face --solvent methanol --c 0.19 --face-nm 200 --island-nm 20 --t-ns 100 --report-ns 10 --ab co --in-plane swapped --out runs/fig/island-methanol-0.19
 '''
 
 [tasks.face-area]
