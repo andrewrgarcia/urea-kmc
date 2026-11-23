@@ -1,4 +1,5 @@
-//! Rate lookup from the decoded SI tables, plus the modeling switches the paper leaves open.
+//! Rate lookup from the decoded SI tables (or a rate file in the same JSON schema, `--rates`), plus the
+//! modeling switches the paper leaves open.
 
 use crate::rates_table::*;
 
@@ -67,12 +68,24 @@ fn geomean(v: &[f64]) -> f64 {
 }
 
 impl Rates {
+    /// The compiled SI tables.
     pub fn new(solvent: Solvent, split: Split, unobserved: Unobserved) -> Rates {
-        let (mut kd, mut kc) = match solvent {
+        let (kd, kc) = match solvent {
             Solvent::Water => (WATER_DISSOLUTION, WATER_CRYSTALLIZATION),
             Solvent::Methanol => (METHANOL_DISSOLUTION, METHANOL_CRYSTALLIZATION),
         };
-        let mut split_on = SPLIT;
+        Rates::from_tables(kd, kc, SPLIT, split, unobserved)
+    }
+
+    /// A rate file in the schema of data/piana_gale_2005_rates.json (e.g. a predicted table). The same
+    /// split and unobserved-cell rules apply as for the SI tables.
+    pub fn from_file(path: &str, solvent: Solvent, split: Split, unobserved: Unobserved) -> Result<Rates, String> {
+        let text = std::fs::read_to_string(path).map_err(|e| format!("{path}: {e}"))?;
+        let (kd, kc, mask) = parse_tables(&text, solvent).map_err(|e| format!("{path}: {e}"))?;
+        Ok(Rates::from_tables(kd, kc, mask, split, unobserved))
+    }
+
+    fn from_tables(mut kd: Table, mut kc: Table, mut split_on: [[bool; 9]; 4], split: Split, unobserved: Unobserved) -> Rates {
         if split == Split::Mean {
             for r in 0..4 {
                 for c in 0..9 {
@@ -122,9 +135,206 @@ impl Rates {
     }
 }
 
+// ---- reading a rate file: just enough JSON for {"<table>": {"<col>/<row>": [numbers], ...}, ...} ----
+
+enum Json {
+    Num(f64),
+    Str(String),
+    Arr(Vec<Json>),
+    Obj(Vec<(String, Json)>),
+}
+
+struct Parser<'a> {
+    b: &'a [u8],
+    i: usize,
+}
+
+impl Parser<'_> {
+    fn ws(&mut self) {
+        while self.i < self.b.len() && self.b[self.i].is_ascii_whitespace() {
+            self.i += 1;
+        }
+    }
+    fn eat(&mut self, c: u8) -> Result<(), String> {
+        self.ws();
+        if self.b.get(self.i) == Some(&c) {
+            self.i += 1;
+            Ok(())
+        } else {
+            Err(format!("expected '{}' at byte {}", c as char, self.i))
+        }
+    }
+    fn value(&mut self) -> Result<Json, String> {
+        self.ws();
+        match self.b.get(self.i) {
+            Some(b'{') => {
+                self.i += 1;
+                let mut v = Vec::new();
+                self.ws();
+                if self.b.get(self.i) == Some(&b'}') {
+                    self.i += 1;
+                    return Ok(Json::Obj(v));
+                }
+                loop {
+                    let k = match self.value()? {
+                        Json::Str(s) => s,
+                        _ => return Err(format!("object key must be a string, byte {}", self.i)),
+                    };
+                    self.eat(b':')?;
+                    v.push((k, self.value()?));
+                    self.ws();
+                    match self.b.get(self.i) {
+                        Some(b',') => self.i += 1,
+                        Some(b'}') => {
+                            self.i += 1;
+                            return Ok(Json::Obj(v));
+                        }
+                        _ => return Err(format!("expected ',' or '}}' at byte {}", self.i)),
+                    }
+                }
+            }
+            Some(b'[') => {
+                self.i += 1;
+                let mut v = Vec::new();
+                self.ws();
+                if self.b.get(self.i) == Some(&b']') {
+                    self.i += 1;
+                    return Ok(Json::Arr(v));
+                }
+                loop {
+                    v.push(self.value()?);
+                    self.ws();
+                    match self.b.get(self.i) {
+                        Some(b',') => self.i += 1,
+                        Some(b']') => {
+                            self.i += 1;
+                            return Ok(Json::Arr(v));
+                        }
+                        _ => return Err(format!("expected ',' or ']' at byte {}", self.i)),
+                    }
+                }
+            }
+            Some(b'"') => {
+                self.i += 1;
+                let start = self.i;
+                while self.i < self.b.len() && self.b[self.i] != b'"' {
+                    if self.b[self.i] == b'\\' {
+                        return Err(format!("escapes in strings are not supported, byte {}", self.i));
+                    }
+                    self.i += 1;
+                }
+                let s = std::str::from_utf8(&self.b[start..self.i]).map_err(|e| e.to_string())?.to_string();
+                self.eat(b'"')?;
+                Ok(Json::Str(s))
+            }
+            Some(_) => {
+                let start = self.i;
+                while self.i < self.b.len() && matches!(self.b[self.i], b'0'..=b'9' | b'-' | b'+' | b'.' | b'e' | b'E') {
+                    self.i += 1;
+                }
+                let t = std::str::from_utf8(&self.b[start..self.i]).unwrap();
+                t.parse::<f64>().map(Json::Num).map_err(|_| format!("bad number '{t}' at byte {start}"))
+            }
+            None => Err("unexpected end of file".into()),
+        }
+    }
+}
+
+/// Dissolution table, crystallization table and split mask (cells with three values) for one solvent.
+fn parse_tables(text: &str, solvent: Solvent) -> Result<(Table, Table, [[bool; 9]; 4]), String> {
+    let mut p = Parser { b: text.as_bytes(), i: 0 };
+    let root = match p.value()? {
+        Json::Obj(v) => v,
+        _ => return Err("top level must be an object".into()),
+    };
+    let s = match solvent {
+        Solvent::Water => "water",
+        Solvent::Methanol => "methanol",
+    };
+    let mut mask = [[false; 9]; 4];
+    let read = |kind: &str, mask: &mut [[bool; 9]; 4]| -> Result<Table, String> {
+        let name = format!("{s}_{kind}");
+        let cells = match root.iter().find(|(k, _)| *k == name) {
+            Some((_, Json::Obj(v))) => v,
+            Some(_) => return Err(format!("{name} must be an object")),
+            None => return Err(format!("no table {name}")),
+        };
+        let mut t: Table = [[[0.0; 3]; 9]; 4];
+        for r in 0..4 {
+            for c in 0..9 {
+                let key = format!("{}/{}", COL_NAMES[c], ROW_NAMES[r]);
+                let vals: Vec<f64> = match cells.iter().find(|(k, _)| *k == key) {
+                    Some((_, Json::Arr(a))) => a
+                        .iter()
+                        .map(|x| match x {
+                            Json::Num(n) if *n >= 0.0 => Ok(*n),
+                            _ => Err(format!("{name} {key}: rates must be non-negative numbers")),
+                        })
+                        .collect::<Result<_, _>>()?,
+                    _ => return Err(format!("{name}: missing cell {key}")),
+                };
+                t[r][c] = match vals.len() {
+                    1 => [vals[0]; 3],
+                    3 => {
+                        mask[r][c] = true;
+                        [vals[0], vals[1], vals[2]]
+                    }
+                    n => return Err(format!("{name} {key}: {n} values (1 or 3 expected)")),
+                };
+            }
+        }
+        Ok(t)
+    };
+    let kd = read("dissolution", &mut mask)?;
+    let kc = read("crystallization", &mut mask)?;
+    Ok((kd, kc, mask))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    const SI_JSON: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/data/piana_gale_2005_rates.json");
+
+    #[test]
+    fn rate_file_reproduces_the_compiled_tables() {
+        // --rates data/piana_gale_2005_rates.json must be the default model, value for value.
+        let text = std::fs::read_to_string(SI_JSON).unwrap();
+        for (s, kd0, kc0) in [
+            (Solvent::Water, WATER_DISSOLUTION, WATER_CRYSTALLIZATION),
+            (Solvent::Methanol, METHANOL_DISSOLUTION, METHANOL_CRYSTALLIZATION),
+        ] {
+            let (kd, kc, mask) = parse_tables(&text, s).unwrap();
+            for r in 0..4 {
+                for c in 0..9 {
+                    for k in 0..3 {
+                        assert_eq!(kd[r][c][k].to_bits(), kd0[r][c][k].to_bits(), "{s:?} kd {r} {c} {k}");
+                        assert_eq!(kc[r][c][k].to_bits(), kc0[r][c][k].to_bits(), "{s:?} kc {r} {c} {k}");
+                    }
+                }
+            }
+            assert_eq!(mask, SPLIT);
+            for (sp, un) in [(Split::Nnn, Unobserved::Fill), (Split::Mean, Unobserved::Published)] {
+                let a = Rates::new(s, sp, un);
+                let b = Rates::from_file(SI_JSON, s, sp, un).unwrap();
+                assert_eq!(a.kd, b.kd);
+                assert_eq!(a.kc, b.kc);
+                assert_eq!(a.split_on, b.split_on);
+                assert_eq!(a.filled, b.filled);
+            }
+        }
+    }
+
+    #[test]
+    fn rate_file_errors_name_the_problem() {
+        let text = std::fs::read_to_string(SI_JSON).unwrap();
+        let missing = text.replacen("\"12/B\"", "\"12/X\"", 1);
+        let e = parse_tables(&missing, Solvent::Water).err().unwrap();
+        assert!(e.contains("missing cell 12/B"), "{e}");
+        let negative = text.replacen("18790000000000.0", "-1.0", 1);
+        assert!(parse_tables(&negative, Solvent::Water).is_err());
+        assert!(parse_tables("{}", Solvent::Methanol).err().unwrap().contains("no table methanol_dissolution"));
+    }
 
     #[test]
     fn pinned_values_from_the_supplement() {
