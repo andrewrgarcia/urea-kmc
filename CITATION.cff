@@ -9,6 +9,7 @@ authors:
 version: 0.1.0
 license: MIT
 repository-code: "https://github.com/andrewrgarcia/urea-kmc"
+doi: "10.5281/zenodo.24521134"
 preferred-citation:
   type: article
   title: "[Re] Simulating micrometer-scale crystal growth from solution"

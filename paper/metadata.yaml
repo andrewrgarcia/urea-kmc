@@ -1,0 +1,81 @@
+# To be filled by the author(s) at the time of submission
+# -------------------------------------------------------
+
+# Title of the article:
+title: "[Re] Simulating micrometer-scale crystal growth from solution"
+
+authors:
+  - name: Andrew R. Garcia
+    orcid: 0000-0002-4978-1368
+    email: garcia.gtr@gmail.com
+    affiliations: 1,*
+
+affiliations:
+  - code:    1
+    name:    Independent researcher
+    address: ""
+
+keywords: kinetic Monte Carlo, crystal growth, urea, molecular dynamics rates, crystal morphology, Rust
+
+code:
+  - url: https://github.com/andrewrgarcia/urea-kmc
+  - doi: 10.5281/zenodo.24521134
+  - swh:
+
+data:
+  - url:
+  - doi:
+
+replication:
+ - cite: "S. Piana, M. Reyhani and J. D. Gale, Simulating micrometre-scale crystal growth from solution, Nature 438, 70-73 (2005)"
+ - bib:  piana2005
+ - url:  https://www.nature.com/articles/nature04173
+ - doi:  10.1038/nature04173
+
+abstract: "Piana, Reyhani and Gale (Nature 438, 70; 2005) grew urea crystals in three-dimensional kinetic Monte Carlo simulations driven by site rates counted directly in molecular dynamics, and reproduced the needle shape of urea grown from water and the polar shape grown from methanol. The rates are published in the Supplementary Information; the model that uses them is described briefly. We wrote an independent implementation from the published papers alone and report three things. First, which of the two chain neighbors the rate tables call $A$ depends on whether a rate is read from the point of view of the central molecule or of the arriving one, a point the corresponding author confirmed. Read from the arriving molecule's point of view, the tables give saturation at 4.7\\,M (water) and 3.4\\,M (methanol), against the published 5\\,M and 4\\,M; read the other way, they give about twice that and no needle. The first reading reproduces the paper's morphological claims: a needle in water whose \\{110\\} faces do not grow, pointed methanol ends twisted by 90$^\\circ$, birth-and-spread growth of the methanol \\{110\\} face, a methanol shape less elongated than the water one, and steps on \\{110\\} that advance about twice as fast one way along $c$ as the other. Second, the published rates are additive in bond energies at equilibrium but not in kinetics, which is what measuring them buys over an energy-based model. Third, exact continuous-time kinetic Monte Carlo and the paper's 50-ps synchronous sweep give the same morphologies. Code and inputs are open."
+
+bibliography: bibliography.bib
+
+type: Replication
+
+domain: Computational Chemistry
+
+language: Rust
+
+
+# To be filled by the author(s) after acceptance
+# -----------------------------------------------------------------------------
+
+# For example, the URL of the GitHub issue where review actually occured
+review: 
+  - url: 
+
+contributors:
+  - name:
+    orcid: 
+    role: editor
+  - name:
+    orcid:
+    role: reviewer
+  - name:
+    orcid:
+    role: reviewer
+
+# This information will be provided by the editor
+dates:
+  - received:
+  - accepted:
+  - published: 
+
+# This information will be provided by the editor
+article:
+  - number: # Article number will be automatically assigned during publication
+  - doi:    # DOI from Zenodo
+  - url:    # Final PDF URL (Zenodo or rescience website?)
+
+# This information will be provided by the editor
+journal:
+  - name:   "ReScience C"
+  - issn:   2430-3658
+  - volume: 4
+  - issue:  1

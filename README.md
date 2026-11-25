@@ -11,7 +11,7 @@ The replication is written up in
 > A. R. Garcia, "[Re] Simulating micrometer-scale crystal growth from solution", ChemRxiv (2026),
 > https://doi.org/10.26434/chemrxiv.15012667/v1 (preprint; to be submitted to ReScience C).
 
-If you use this code, please cite that preprint (see `CITATION.cff`).
+If you use this code, please cite that preprint (see `CITATION.cff`). This code is archived on Zenodo: https://doi.org/10.5281/zenodo.24521134.
 
 The site rates are the paper's own, measured by counting transitions in molecular dynamics
 (`data/piana_gale_2005_rates.json`, decoded from the SI). Everything else (the lattice, the
