@@ -6,6 +6,13 @@ replicate the morphology results of
 > S. Piana, M. Reyhani & J. D. Gale, "Simulating micrometre-scale crystal growth from solution",
 > *Nature* **438**, 70–73 (2005), doi:10.1038/nature04173, and its Supplementary Information.
 
+The replication is written up in
+
+> A. R. Garcia, "[Re] Simulating micrometer-scale crystal growth from solution", ChemRxiv (2026),
+> https://doi.org/10.26434/chemrxiv.15012667/v1 (preprint; to be submitted to ReScience C).
+
+If you use this code, please cite that preprint (see `CITATION.cff`).
+
 The site rates are the paper's own, measured by counting transitions in molecular dynamics
 (`data/piana_gale_2005_rates.json`, decoded from the SI). Everything else (the lattice, the
 neighbor definitions, the kMC algorithm) is written from the paper and the crystal structure, and every

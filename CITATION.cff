@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite the preprint below."
+title: "urea-kmc: 3D kinetic Monte Carlo of urea crystal growth from solution with MD-derived site rates"
+type: software
+authors:
+  - family-names: Garcia
+    given-names: "Andrew R."
+    orcid: "https://orcid.org/0000-0002-4978-1368"
+version: 0.1.0
+license: MIT
+repository-code: "https://github.com/andrewrgarcia/urea-kmc"
+preferred-citation:
+  type: article
+  title: "[Re] Simulating micrometer-scale crystal growth from solution"
+  authors:
+    - family-names: Garcia
+      given-names: "Andrew R."
+      orcid: "https://orcid.org/0000-0002-4978-1368"
+  journal: ChemRxiv
+  year: 2026
+  doi: "10.26434/chemrxiv.15012667/v1"
+  url: "https://doi.org/10.26434/chemrxiv.15012667/v1"
+  notes: "Preprint"
